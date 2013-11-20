@@ -29,6 +29,10 @@ class Tuple {
 	}
 	
 	public void unref() {
+		if (refs.size() != length + 1) {
+			System.err.println("Oops! Wrong count number of references.");
+		}
+		
 		for (HashSet<Tuple> set : refs) {
 			if (!set.remove(this)) {
 				System.err.println("Oops! Exception occured.");
