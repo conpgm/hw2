@@ -11,7 +11,7 @@ class Tuple {
 	private int length;
 	
 	public Tuple (String... data) {
-		this.data = data;
+		this.data = data.clone();
 		length = data.length;
 		refs = new ArrayList<HashSet<Tuple>>();
 	}
@@ -81,16 +81,13 @@ public class LocalTupleSpace implements TupleSpace {
 		return tp.getData();
 	}
 
-	public synchronized void put(String... tuple) {
-		
+	public synchronized void put(String... tuple) {	
 		Tuple tp = new Tuple(tuple);
 
 		// check if tuple space is long enough for the new coming tuple
-		if (space.size() < tp.size()) {
-			for (int i = 0; i < (tp.size() - space.size()); i++) {
-				HashSet<Tuple> set = new HashSet<Tuple>();
-				space.add(set);
-			}
+		while (space.size() < tp.size()) {
+			HashSet<Tuple> set = new HashSet<Tuple>();
+			space.add(set);
 		}
 		// add tuple into tuple space
 		if (space.get(tp.size() - 1).add(tp)) {
@@ -101,12 +98,10 @@ public class LocalTupleSpace implements TupleSpace {
 		}
 		
 		// check if indexes is long enough for the new coming tuple
-		if (indexes.size() < tp.size()) {
-			for (int i = 0; i < (tp.size() - indexes.size()); i++) {
-				HashMap<String, ArrayList<HashSet<Tuple>>> map = 
-						new HashMap<String, ArrayList<HashSet<Tuple>>>();
-				indexes.add(map);
-			}
+		while (indexes.size() < tp.size()) {
+			HashMap<String, ArrayList<HashSet<Tuple>>> map = 
+					new HashMap<String, ArrayList<HashSet<Tuple>>>();
+			indexes.add(map);
 		}
 		
 		// update indexes
@@ -116,11 +111,9 @@ public class LocalTupleSpace implements TupleSpace {
 				list = new ArrayList<HashSet<Tuple>>();
 				indexes.get(i).put(tuple[i], list);
 			}
-			if (list.size() < tp.size()) {
-				for (int j = 0; j < (tp.size() - list.size()); j++) {
-					HashSet<Tuple> set = new HashSet<Tuple>();
-					list.add(set);
-				}
+			while (list.size() < tp.size()) {
+				HashSet<Tuple> set = new HashSet<Tuple>();
+				list.add(set);
 			}
 			if (list.get(tp.size() - 1).add(tp)) {
 				tp.ref(list.get(tp.size() - 1));
@@ -139,8 +132,9 @@ public class LocalTupleSpace implements TupleSpace {
 		// generate candidate tuple sets and find the set who has the minimum size
 		candidateSets.clear();
 		
-		int min = Integer.MAX_VALUE;
-		int loc = 0;
+		int iCandidateSets = 0;
+		int sizeMin = Integer.MAX_VALUE;
+		int indexMin = 0;
 		
 		for (int i = 0; i < pattern.length; i++) {
 			if (pattern[i] != null) {
@@ -149,11 +143,12 @@ public class LocalTupleSpace implements TupleSpace {
 					return null;
 				} else {
 					HashSet<Tuple> set = list.get(pattern.length - 1);
-					if (set.size() < min) {
-						min = set.size();
-						loc = i;
+					candidateSets.add(set);
+					if (set.size() < sizeMin) {
+						sizeMin = set.size();
+						indexMin = iCandidateSets;
 					}
-					candidateSets.add(set);	
+					iCandidateSets++;
 				}
 			}
 		}
@@ -167,10 +162,10 @@ public class LocalTupleSpace implements TupleSpace {
 				return set.iterator().next();
 			}
 		} else {
-			for (Tuple tp : candidateSets.get(loc)) {
+			for (Tuple tp : candidateSets.get(indexMin)) {
 				boolean found = true;
-				for (int i = 0; i < candidateSets.size() - 1; i++) {
-					if (i != loc && !candidateSets.get(i).contains(tp)) {
+				for (int i = 0; i < candidateSets.size(); i++) {
+					if (i != indexMin && !candidateSets.get(i).contains(tp)) {
 						found = false;
 						break;
 					}
@@ -179,9 +174,5 @@ public class LocalTupleSpace implements TupleSpace {
 			}
 			return null;
 		}
-	}
-	
-	public static void main(String[] args) {
-		
 	}
 }

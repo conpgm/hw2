@@ -2,7 +2,7 @@
 <classpath>
 	<classpathentry excluding="*.launch" kind="src" path=""/>
 	<classpathentry kind="con" path="org.eclipse.jdt.launching.JRE_CONTAINER"/>
-	<classpathentry kind="con" path="org.eclipse.jdt.USER_LIBRARY/GroboUtils"/>
 	<classpathentry kind="con" path="org.eclipse.jdt.junit.JUNIT_CONTAINER/4"/>
+	<classpathentry kind="lib" path="E:/workspace/hw2/tuplespace/GroboUtils-5-core.jar"/>
 	<classpathentry kind="output" path="bin"/>
 </classpath>
