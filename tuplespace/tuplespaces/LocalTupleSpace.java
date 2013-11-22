@@ -1,6 +1,7 @@
 package tuplespaces;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 
 public class LocalTupleSpace implements TupleSpace {
 	
@@ -18,6 +19,7 @@ public class LocalTupleSpace implements TupleSpace {
 		
 		while ((tp = search(pattern)) == null) {
 			synchronized (wp) {
+				System.out.println("w " + wp.hashCode() + " " + Arrays.toString(wp));
 				try {
 					wp.wait();
 				} catch (InterruptedException e) {
@@ -25,11 +27,9 @@ public class LocalTupleSpace implements TupleSpace {
 				}
 			}
 		}
-
 		synchronized (this) {
 			space.remove(tp);
 		}
-		
 		return tp;
 	}
 
@@ -39,6 +39,7 @@ public class LocalTupleSpace implements TupleSpace {
 		
 		while ((tp = search(pattern)) == null) {
 			synchronized (wp) {
+				System.out.println("rw" + wp.hashCode() + " " + Arrays.toString(wp));
 				try {
 					wp.wait();
 				} catch (InterruptedException e) {
@@ -50,13 +51,20 @@ public class LocalTupleSpace implements TupleSpace {
 		return tp;
 	}
 
-	public void put(String... tuple) {	
+	public void put(String... tuple) {
+		
 		synchronized (this) {
 			space.add(tuple.clone());
+//			System.out.println("put" + Arrays.toString(tuple));
 		}
 		
 		String[] wp = notifyWaiting(tuple);
-		if (wp != null) wp.notify();
+		if (wp != null) {
+			synchronized (wp) {
+				System.out.println("r " + wp.hashCode() + " " +Arrays.toString(wp));
+				wp.notify();
+			}
+		}
 	}
 	
 	private synchronized String[] search(String... pattern) {
@@ -94,6 +102,7 @@ public class LocalTupleSpace implements TupleSpace {
 		if (wp == null) {
 			wp = pattern.clone();
 			waiting.add(wp);
+			System.out.println("aw " + wp.hashCode() + " " + Arrays.toString(wp));
 		}
 		
 		return wp;
@@ -104,7 +113,7 @@ public class LocalTupleSpace implements TupleSpace {
 			if (w.length != tuple.length) continue;
 			boolean found = true;
 			for (int i = 0; i < w.length; i++) {
-				if (w[i] != tuple[i]) {
+				if (w[i] != null && w[i] != tuple[i]) {
 					found = false;
 					break;
 				}
