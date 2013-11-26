@@ -1,6 +1,7 @@
 package tuplespaces;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 
 public class LocalTupleSpace implements TupleSpace {
 	
@@ -141,6 +142,7 @@ public class LocalTupleSpace implements TupleSpace {
 		if (wp == null) {
 			wp = pattern.clone();
 			waiting.add(wp);
+			System.out.println("aw " + wp.hashCode() + " " + Arrays.toString(wp));
 		}
 		
 		return wp;
