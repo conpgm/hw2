@@ -9,10 +9,10 @@ public class ChatServer {
 	public static final String 	CHANNELLIST 	= "chl";
 	public static final String 	LISTENERSET 	= "lns";
 	public static final String 	NEXTWRITE 		= "nxw";
-	public static final String 	MESSAGE 		= "msg";
 	public static final String 	ACK 			= "ack";
 	public static final String 	READWAIT 		= "rwt";
 	public static final String 	READSIGNAL 		= "rsg";
+	public static final String 	MESSAGE 		= "msg";
 	
 	TupleSpace ts;
 	
@@ -28,7 +28,11 @@ public class ChatServer {
 		
 		for (String ch : channelNames) {
 			if (chSet.add(ch, rows)) {
+				ts.put(ch, LISTENERSET, "");
 				ts.put(ch, NEXTWRITE, "0");
+				ts.put(ch, READWAIT, "0");
+				for (int i = 0; i < rows; i++)
+					ts.put(ch, MESSAGE, Integer.toString(i), "");
 			}
 		}
 		ts.put(CHANNELLIST, chSet.toString());
@@ -42,11 +46,12 @@ public class ChatServer {
 
 	public String[] getChannels() {
 		String[] tuple = ts.get(CHANNELLIST, null);
-		ChannelSet tmp = new ChannelSet();
-		tmp.fromString(tuple[1]);
+		ChannelSet set = new ChannelSet();
+		set.fromString(tuple[1]);
 		
-		chSet.merge(tmp);
+		chSet.merge(set);
 		ts.put(CHANNELLIST, chSet.toString());
+		
 		return chSet.getChannels();
 	}
 	
@@ -61,15 +66,14 @@ public class ChatServer {
 		String qPos = Integer.toString(wPos % rows);
 		
 		// before overwriting message, we wait until that message has 
-		// been received by all clients
+		// been received by all listeners
 		IDSet listeners = listenerMap.get(channel);
 		IDSet acks = ackMap.get(channel);
-		
 		acks.clear();
 		
 		tuple = ts.read(channel, LISTENERSET, null);
 		listeners.fromString(tuple[2]);
-		while (!acks.containedBy(listeners)){
+		while (!listeners.isEmpty() && !acks.containedBy(listeners)){
 			tuple = ts.get(channel, ACK, qPos, null);
 			acks.add(Integer.parseInt(tuple[3]));
 			tuple = ts.read(channel, LISTENERSET, null);

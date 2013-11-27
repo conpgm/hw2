@@ -11,18 +11,21 @@ public class IDSet {
 	}
 	
 	public void fromString(String s) {
-		String[] arr = s.split(",");
-		for (int i = 0; i < arr.length; i++) {
-			ids[i] = Integer.parseInt(arr[i]);
-		}
-		length = arr.length;
+		if (s.contains("#")) {
+			String[] arr = s.split("#");
+			for (int i = 0; i < arr.length; i++) {
+				ids[i] = Integer.parseInt(arr[i]);
+			}
+			length = arr.length;
+		} else
+			length = 0;
 	}
 	
 	public String toString() {
 		String s = "";
 		for (int i = 0; i < length; i++) {
 			if (ids[i] != -1)
-				s += ids[i] + ", ";
+				s += Integer.toString(ids[i]) + "#";
 		}
 		return s;
 	}
@@ -48,6 +51,11 @@ public class IDSet {
 	
 	public void clear() {
 		length = 0;
+	}
+	
+	public boolean isEmpty() {
+		if (length == 0) return true;
+		return false;
 	}
 	
 	public boolean containedBy(IDSet set) {

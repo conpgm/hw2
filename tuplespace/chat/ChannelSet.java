@@ -4,33 +4,33 @@ import java.util.HashMap;
 import java.util.Set;
 
 class ChannelSet {
-	HashMap<String, Integer> channels;
+	HashMap<String, String> channels;
 	
 	public ChannelSet() {
-		channels = new HashMap<String, Integer>();
+		channels = new HashMap<String, String>();
 	}
 	
 	public boolean add(String ch, int rows) {
 		
 		if (channels.containsKey(ch)) {
-			if (channels.get(ch).intValue() != rows) {
+			if (Integer.parseInt(channels.get(ch)) != rows) {
 				System.err.println("OOps. " + ch + " has different rows.");
 			}
 			return false;
 		} else {
-			channels.put(ch, rows);
+			channels.put(ch, Integer.toString(rows));
 			return true;
 		}
 	}
 
-	public void merge(ChannelSet cSet) {
-		Set<String> chs = cSet.channels.keySet();
+	public void merge(ChannelSet set) {
+		Set<String> chs = set.channels.keySet();
 		for (String ch : chs) {
 			if (channels.containsKey(ch)) {
-				if (!channels.get(ch).equals(cSet.channels.get(ch)))
+				if (Integer.parseInt(channels.get(ch)) != Integer.parseInt(set.channels.get(ch)))
 					System.err.println("OOps. " + ch + " has different rows.");
 			} else {
-				channels.put(ch, cSet.channels.get(ch));
+				channels.put(ch, set.channels.get(ch));
 			}
 		}
 	}
@@ -39,18 +39,19 @@ class ChannelSet {
 		String s = "";
 		Set<String> chs = channels.keySet();
 		for (String ch : chs) {
-			s += ch + ":" + channels.get(ch).toString() + ", ";
+			s += ch + ":" + channels.get(ch) + "#";
 		}
 		return s;
 	}
 	
 	public void fromString(String s) {
 		channels.clear();
-		
-		String[] items = s.split(", ");
-		for (String item : items) {
-			int loc = item.indexOf(':');
-			channels.put(item.substring(0, loc), Integer.parseInt(item.substring(loc + 1)));
+		if (s.contains("#")) {
+			String[] items = s.split("#");
+			for (String item : items) {
+				int loc = item.indexOf(':');
+				channels.put(item.substring(0, loc), item.substring(loc + 1));
+			}
 		}
 	}
 	
@@ -68,8 +69,8 @@ class ChannelSet {
 	}
 	
 	public int getRows(String channel) {
-		Integer rows = channels.get(channel);
+		String rows = channels.get(channel);
 		if (rows == null) return 0;
-		return rows.intValue();
+		return Integer.parseInt(rows);
 	}
 }
