@@ -4,7 +4,6 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.UUID;
 
-import tuplespaces.LocalTupleSpace;
 import tuplespaces.TupleSpace;
 
 public class ChatServer {
@@ -159,12 +158,5 @@ public class ChatServer {
 		System.out.println("[S] " + channel + ": after create listener");
 		
 		return chatListener;
-	}
-	
-	public static void main(String[] args) {
-		ChatServer cs = new ChatServer(new LocalTupleSpace(), 3, new String[]{"ch1", "ch2", "ch3"});
-		cs.ts.print();
-		cs.ts.get("ch1", "msg", "0", null);
-		cs.ts.print();
 	}
 }

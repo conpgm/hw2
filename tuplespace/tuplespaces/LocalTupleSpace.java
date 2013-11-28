@@ -18,6 +18,8 @@ public class LocalTupleSpace implements TupleSpace {
 	public LocalTupleSpace () {
 		space = new ArrayList<String[]>();
 		waiting = new ArrayList<String[]>();
+		
+		space.add(new String[]{"chl", ""});
 	}
 
 	public String[] get(String... pattern) {
