@@ -2,177 +2,162 @@ package tuplespaces;
 
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.HashMap;
-import java.util.HashSet;
 
-class Tuple {
-	private String[] data;
-	private ArrayList<HashSet<Tuple>> refs;
-	private int length;
-	
-	public Tuple (String... data) {
-		this.data = data.clone();
-		length = data.length;
-		refs = new ArrayList<HashSet<Tuple>>();
-	}
-	
-	public String[] getData() {
-		return data;
-	}
-	
-	public int size() {
-		return length;
-	}
-	
-	public void ref(HashSet<Tuple> set) {
-		refs.add(set);
-	}
-	
-	public void unref() {
-		if (refs.size() != length + 1) {
-			System.err.println("Oops! Wrong count number of references.");
-		}
-		
-		for (HashSet<Tuple> set : refs) {
-			if (!set.remove(this)) {
-				System.err.println("Oops! Exception occured.");
-				return ;
-			}
-		}
-	}
-}
-
+/*
+ * Tuple Space implementation. It works this way: when a tuple is put into 
+ * the tuple space, only the thread that waits for that tuple is notified, 
+ * thereby improving the performance of concurrency.
+ */
 public class LocalTupleSpace implements TupleSpace {
 	
-	ArrayList<HashSet<Tuple>> space;
-	ArrayList<HashMap<String, ArrayList<HashSet<Tuple>>>> indexes;
-	ArrayList<HashSet<Tuple>> candidateSets;
+	// store all tuples
+	ArrayList<String[]> space;
+	// store all patterns that are used as synchronized objects
+	ArrayList<String[]> waiting;
 	
 	public LocalTupleSpace () {
-		space = new ArrayList<HashSet<Tuple>>();
-		indexes = new ArrayList<HashMap<String, ArrayList<HashSet<Tuple>>>>();
-		candidateSets = new ArrayList<HashSet<Tuple>>();
-	}
-	
-	public synchronized String[] get(String... pattern) {
-		Tuple tp;
-		while ((tp = search(pattern)) == null) {
-			try {
-				wait();
-			} catch (InterruptedException e) {
-				throw new RuntimeException();
-			}
-		}
-		
-		tp.unref();
-		return tp.getData();
+		space = new ArrayList<String[]>();
+		waiting = new ArrayList<String[]>();
 	}
 
-	public synchronized String[] read(String... pattern) {
-		Tuple tp;
-		while ((tp = search(pattern)) == null) {
-			try {
-				wait();
-			} catch (InterruptedException e) {
-				throw new RuntimeException();
+	public String[] get(String... pattern) {
+		String[] tp;
+		
+		String[] wp = addWaiting(pattern);
+		synchronized(wp){
+			while ((tp = search(pattern, true)) == null) {
+				try {
+					wp.wait();
+				} catch (InterruptedException e) {
+					System.err.println(e.getMessage());
+				}
 			}
 		}
-		
-		return tp.getData();
+
+		return tp;
 	}
 
-	public synchronized void put(String... tuple) {	
-		Tuple tp = new Tuple(tuple);
-
-		// check if tuple space is long enough for the new coming tuple
-		while (space.size() < tp.size()) {
-			HashSet<Tuple> set = new HashSet<Tuple>();
-			space.add(set);
-		}
-		// add tuple into tuple space
-		if (space.get(tp.size() - 1).add(tp)) {
-			tp.ref(space.get(tp.size()-1));
-		} else {
-			System.err.println(Arrays.toString(tuple) + "existed in tuple space.");
-			return ;
-		}
+	public String[] read(String... pattern) {
+		String[] tp;
 		
-		// check if indexes is long enough for the new coming tuple
-		while (indexes.size() < tp.size()) {
-			HashMap<String, ArrayList<HashSet<Tuple>>> map = 
-					new HashMap<String, ArrayList<HashSet<Tuple>>>();
-			indexes.add(map);
-		}
-		
-		// update indexes
-		for (int i = 0; i < tp.size(); i++) {
-			ArrayList<HashSet<Tuple>> list = indexes.get(i).get(tuple[i]);
-			if (list == null) {
-				list = new ArrayList<HashSet<Tuple>>();
-				indexes.get(i).put(tuple[i], list);
-			}
-			while (list.size() < tp.size()) {
-				HashSet<Tuple> set = new HashSet<Tuple>();
-				list.add(set);
-			}
-			if (list.get(tp.size() - 1).add(tp)) {
-				tp.ref(list.get(tp.size() - 1));
-			} else {
-				System.err.println(Arrays.toString(tuple) + "existed in indexes " + i);
-			}
-		}
-		
-		notifyAll();
-	}
-	
-	private Tuple search(String... pattern) {
-		
-		if (indexes.size() < pattern.length || space.size() < pattern.length) return null;
-		
-		// generate candidate tuple sets and find the set who has the minimum size
-		candidateSets.clear();
-		
-		int iCandidateSets = 0;
-		int sizeMin = Integer.MAX_VALUE;
-		int indexMin = 0;
-		
-		for (int i = 0; i < pattern.length; i++) {
-			if (pattern[i] != null) {
-				ArrayList<HashSet<Tuple>> list = indexes.get(i).get(pattern[i]);
-				if (list == null || list.size() < pattern.length || list.get(pattern.length - 1).isEmpty()) {
-					return null;
-				} else {
-					HashSet<Tuple> set = list.get(pattern.length - 1);
-					candidateSets.add(set);
-					if (set.size() < sizeMin) {
-						sizeMin = set.size();
-						indexMin = iCandidateSets;
-					}
-					iCandidateSets++;
+		String[] wp = addWaiting(pattern);
+		synchronized(wp){
+			while ((tp = search(pattern, false)) == null) {
+				try {
+					wp.wait();
+				} catch (InterruptedException e) {
+					System.err.println(e.getMessage());
 				}
 			}
 		}
 		
-		// intersection of candidate tuple sets
-		if (candidateSets.size() == 0) {
-			HashSet<Tuple> set = space.get(pattern.length - 1);
-			if (set.isEmpty()) {
-				return null;
-			} else {
-				return set.iterator().next();
+		return tp;
+	}
+
+	public void put(String... tuple) {
+		for (String s : tuple) {
+			if (s == null) {
+				System.err.println("OOps. Tuple " + 
+						Arrays.toString(tuple) + " contains null.");
+				return ;
 			}
-		} else {
-			for (Tuple tp : candidateSets.get(indexMin)) {
+		}
+		
+		synchronized (space) {
+			space.add(tuple.clone());
+		}
+		
+		String[] wp = notifyWaiting(tuple);
+		if(wp != null){
+			synchronized(wp){
+				wp.notify();
+			}
+		}
+	}
+	
+	/* 
+	 * search tuple that matches pattern in tuple space and remove the matched 
+	 * tuple if toRemove is true.
+	 * We have to make sure that search and remove operations form an atomic 
+	 * operation. Thus, we put remove here.
+	 */
+	private String[] search(String[] pattern, boolean toRemove) {
+		synchronized (space) {
+			for (String[] tp : space) {
+				if (tp.length == pattern.length) {
+					boolean found = true;
+					for (int i = 0; i < pattern.length; i++) {
+						if (pattern[i] != null && !pattern[i].equals(tp[i])) {
+							found = false;
+							break;
+						}
+					}
+					if (found) {
+						if(toRemove) space.remove(tp);
+						return tp;
+					}
+				}
+			}
+		}
+		
+		return null;
+	}
+	
+	/*
+	 * If there is an existed pattern that is used as a synchronized object
+	 * by some thread, continue using that pattern. If not, then use the new 
+	 * pattern as a synchronized object. Then, the caller of this function 
+	 * might invoke wait() if necessary.
+	 */
+	private String[] addWaiting(String... pattern) {
+		String[] wp = null;
+		
+		synchronized (waiting) {
+			for (String[] w : waiting) {
+				if (w.length != pattern.length) continue;
 				boolean found = true;
-				for (int i = 0; i < candidateSets.size(); i++) {
-					if (i != indexMin && !candidateSets.get(i).contains(tp)) {
+				for (int i = 0; i < pattern.length; i++) {
+					if (!((pattern[i] == null && w[i] == null) ||
+							pattern[i] != null && pattern[i].equals(w[i]))) {
 						found = false;
 						break;
 					}
 				}
-				if (found) return tp;
+				if (found) {
+					wp = w;
+					break;
+				}
 			}
-			return null;
+		
+			if (wp == null) {
+				wp = pattern.clone();
+				waiting.add(wp);
+			}
 		}
+		
+		return wp;
+	}
+	
+	/*
+	 * Find the pattern that matches tuple in waiting, return null if no
+	 * one exists. Then, The caller of this function should invoke notify()
+	 * if pattern exists. 
+	 */
+	private String[] notifyWaiting(String... tuple) {
+		synchronized (waiting) {
+			for (String[] w : waiting) {
+				if (w.length != tuple.length) continue;
+				boolean found = true;
+				for (int i = 0; i < w.length; i++) {
+					if (w[i] != null && !w[i].equals(tuple[i])) {
+						found = false;
+						break;
+					}
+				}
+				if (found) return w;
+			}
+		}
+		
+		return null;
 	}
 }
