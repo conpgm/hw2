@@ -8,17 +8,17 @@ public class ChatListener {
 	String channel;
 	int rows;
 	int rPos;
-	int id;
+	String id;
 
 	public ChatListener(TupleSpace ts, String channel, int rows, int rPos) {
 		this.ts = ts;
 		this.channel = channel;
 		this.rows = rows;
 		this.rPos = rPos;
-		id = -1;
+		id = "";
 	}
 	
-	public void setID(int id) {
+	public void setID(String id) {
 		this.id = id;
 	}
 	
@@ -28,14 +28,25 @@ public class ChatListener {
 		
 		int wPos = Integer.parseInt(tuple[2]);
 		
-		if (rPos == wPos) {
+		System.out.println("[L] " + channel + ": before reading " + rPos);
+		
+		if (rPos == wPos) {			
 			tuple = ts.get(channel, ChatServer.READWAIT, null);
+
+			System.out.println("[L] " + channel + ": wait for reading " + rPos);
+			
 			ts.put(channel, ChatServer.READWAIT, Integer.toString(Integer.parseInt(tuple[2]) + 1));
 			ts.get(channel, ChatServer.READSIGNAL);
+	
+			System.out.println("[L] " + channel + ": ready for reading " + rPos);
 		}
 		
 		tuple = ts.read(channel, ChatServer.MESSAGE, Integer.toString(rPos % rows), null);
+		ts.put(channel, ChatServer.ACK, Integer.toString(rPos % rows), id);
 		
+		System.out.println("[L] " + channel +": after reading " + rPos);
+		
+		rPos++;
 		return tuple[3];
 	}
 

@@ -1,5 +1,6 @@
 package chat;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Set;
 
@@ -23,7 +24,8 @@ class ChannelSet {
 		}
 	}
 
-	public void merge(ChannelSet set) {
+	public ArrayList<String> merge(ChannelSet set) {
+		ArrayList<String> merged = new ArrayList<String> ();
 		Set<String> chs = set.channels.keySet();
 		for (String ch : chs) {
 			if (channels.containsKey(ch)) {
@@ -31,8 +33,10 @@ class ChannelSet {
 					System.err.println("OOps. " + ch + " has different rows.");
 			} else {
 				channels.put(ch, set.channels.get(ch));
+				merged.add(ch);
 			}
 		}
+		return merged;
 	}
 	
 	public String toString() {
