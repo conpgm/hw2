@@ -25,24 +25,25 @@ public class ChatListener {
 	public String getNextMessage() {
 		String[] tuple;
 		tuple = ts.read(channel, ChatServer.NEXTWRITE, null);
-		
 		int wPos = Integer.parseInt(tuple[2]);
+		
+		String qPos = Integer.toString(rPos % rows);
 		
 		System.out.println("[L] " + channel + ": before reading " + rPos);
 		
 		if (rPos == wPos) {			
-			tuple = ts.get(channel, ChatServer.READWAIT, null);
+			tuple = ts.get(channel, ChatServer.READWAIT, qPos, null);
 
 			System.out.println("[L] " + channel + ": wait for reading " + rPos);
 			
-			ts.put(channel, ChatServer.READWAIT, Integer.toString(Integer.parseInt(tuple[2]) + 1));
-			ts.get(channel, ChatServer.READSIGNAL);
+			ts.put(channel, ChatServer.READWAIT, qPos, Integer.toString(Integer.parseInt(tuple[3]) + 1));
+			ts.get(channel, ChatServer.READSIGNAL, qPos);
 	
 			System.out.println("[L] " + channel + ": ready for reading " + rPos);
 		}
 		
-		tuple = ts.read(channel, ChatServer.MESSAGE, Integer.toString(rPos % rows), null);
-		ts.put(channel, ChatServer.ACK, Integer.toString(rPos % rows), id);
+		tuple = ts.read(channel, ChatServer.MESSAGE, qPos, null);
+		ts.put(channel, ChatServer.ACK, qPos, id);
 		
 		System.out.println("[L] " + channel +": after reading " + rPos);
 		

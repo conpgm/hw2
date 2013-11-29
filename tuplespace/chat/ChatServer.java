@@ -32,7 +32,8 @@ public class ChatServer {
 			if (chSet.add(ch, rows)) {
 				ts.put(ch, LISTENERSET, "");
 				ts.put(ch, NEXTWRITE, "0");
-				ts.put(ch, READWAIT, "0");
+				for (int i = 0; i < rows; i++)
+					ts.put(ch, READWAIT, Integer.toString(i), "0");
 			}
 		}
 		ts.put(CHANNELLIST, chSet.toString());
@@ -77,12 +78,12 @@ public class ChatServer {
 		// disable other chat servers
 		tuple = ts.get(channel, NEXTWRITE, null);
 		int wPos = Integer.parseInt(tuple[2]);
+		String qPos = Integer.toString(wPos % rows);
 		
 		if(wPos < rows) {
 			System.out.println("[S] " + channel + ": write directly " + wPos);
 			ts.put(channel, MESSAGE, Integer.toString(wPos), message);
 		} else {
-			String qPos = Integer.toString(wPos % rows);
 			// before overwriting message, we wait until that message has 
 			// been received by all listeners
 			IDSet listeners = listenerMap.get(channel);
@@ -94,7 +95,7 @@ public class ChatServer {
 			
 			System.out.println("[S] " + channel + ": lsnset " + listeners.toString());
 			
-			while (!listeners.isEmpty() && !acks.containedBy(listeners)){
+			while (!listeners.isEmpty() && !listeners.containedBy(acks)){
 				
 				System.out.println("[S] " + channel + ": wait for writing " + qPos + " " + wPos);
 				
@@ -121,11 +122,11 @@ public class ChatServer {
 		ts.put(channel, NEXTWRITE, Integer.toString(wPos + 1));
 		
 		// signal waiting listeners if any
-		tuple = ts.get(channel, READWAIT, null);
-		for (int i = 0; i < Integer.parseInt(tuple[2]); i++) {
-			ts.put(channel, READSIGNAL);
+		tuple = ts.get(channel, READWAIT, qPos, null);
+		for (int i = 0; i < Integer.parseInt(tuple[3]); i++) {
+			ts.put(channel, READSIGNAL, qPos);
 		}
-		ts.put(channel, READWAIT, "0");
+		ts.put(channel, READWAIT, qPos, "0");
 	}
 
 	public ChatListener openConnection(String channel) {
