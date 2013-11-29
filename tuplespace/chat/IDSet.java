@@ -26,12 +26,10 @@ public class IDSet extends ArrayList<String> {
 	}
 	
 	public boolean containedBy(IDSet set) {
-		int size = size();
-		if (size == 0 || size > set.size()) return false;
+		if (size() > set.size()) return false;
 		
-		boolean found = false;
 		for (String i : this) {
-			found = false;
+			boolean found = false;
 			for (String j : set) {
 				if (j.equals(i)) {
 					found = true;
