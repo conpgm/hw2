@@ -19,7 +19,7 @@ public class LocalTupleSpace implements TupleSpace {
 		space = new ArrayList<String[]>();
 		waiting = new ArrayList<String[]>();
 		
-		space.add(new String[]{"chl", ""});
+		space.add(new String[]{"chs", ""});
 	}
 
 	public String[] get(String... pattern) {

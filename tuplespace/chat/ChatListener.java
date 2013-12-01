@@ -21,22 +21,21 @@ public class ChatListener {
 	public String getNextMessage() {
 		String qPos = Integer.toString(rPos % rows);
 		
-		System.out.println("[L] " + channel + ": before reading " + qPos + " " + rPos);
+//		System.out.println("[L] " + channel + ": before reading " + qPos + " " + rPos);
 	
 		// try to get signal
 		String[] tuple;
-		tuple = ts.get(channel, ChatServer.SIGNALREAD, qPos, id);
+		ts.get(channel, ChatServer.SIGNALREAD, qPos, id);
 		
-		// read after getting signal
+		// read message after getting signal
 		tuple = ts.read(channel, ChatServer.MESSAGE, qPos, null);
 		
 		// signal chat servers that reading is done
 		ts.put(channel, ChatServer.SIGNALWRITE, qPos, id);
 		
+//		System.out.println("[L] " + channel +": after reading " + rPos);
+		
 		rPos++;
-		
-		System.out.println("[L] " + channel +": after reading " + rPos);
-		
 		return tuple[3];
 	}
 
@@ -45,20 +44,17 @@ public class ChatListener {
 		System.out.println("[L] " + channel + ": before closeConnection");
 		
 		String[] tuple;
-		tuple = ts.get(channel, ChatServer.NEXTWRITE, null, null);
-		int wPos = Integer.parseInt(tuple[2]);
+		tuple = ts.get(channel, ChatServer.LISTENERSET, null);
 		IDSet listeners = new IDSet();
-		listeners.fromString(tuple[3]);
-		
-		// consume all the signals that have not been consumed
-		for (int i = rPos; i < wPos; i++) {
-			tuple = ts.get(channel, ChatServer.SIGNALREAD, Integer.toString(i % rows), id);
-		}
+		listeners.fromString(tuple[2]);
 		
 		// update listeners list
 		listeners.remove(id);
-		ts.put(channel, ChatServer.NEXTWRITE, Integer.toString(wPos), listeners.toString());
+		ts.put(channel, ChatServer.LISTENERSET, listeners.toString());
 		
-		System.out.println("[L] " + channel + ": after closeConnection");
+		// just signal chat server in case it is waiting
+		ts.put(channel, ChatServer.SIGNALWRITE, Integer.toString(rPos % rows), id);
+		
+//		System.out.println("[L] " + channel + ": after closeConnection");
 	}
 }
