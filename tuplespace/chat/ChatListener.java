@@ -31,9 +31,8 @@ public class ChatListener {
 		
 		// signal chat servers
 		ts.put(channel, ChatServer.SIGNALS, nr, Integer.toString(signals - 1));
-		ts.print();
 		
-		System.out.println("[L] " + channel +": read done. " + nr);
+		System.out.println("[L] " + channel +": read done. " + nr + " " + (signals - 1));
 		
 		nextRead++;
 		return tuple[3];

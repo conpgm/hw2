@@ -79,7 +79,7 @@ public class ChatServer {
 		if (nwInt >= rows) {
 			// wait for oldest message
 			String old = Integer.toString(nwInt - rows);
-			System.out.println("[S] " + channel + ": wait for old " + old);
+			System.out.println("[S] " + channel + ": wait for " + old);
 			ts.get(channel, SIGNALS, old, "0");
 			// reclaim oldest message
 			System.out.println("[S] " + channel + ": reclaim ");

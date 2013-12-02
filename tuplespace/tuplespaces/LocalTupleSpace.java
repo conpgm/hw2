@@ -2,6 +2,8 @@ package tuplespaces;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
+import java.util.Set;
 
 /*
  * Tuple Space implementation. It works this way: when a tuple is put into 
@@ -10,50 +12,63 @@ import java.util.Arrays;
  */
 public class LocalTupleSpace implements TupleSpace {
 	
+//	class PatternStat {
+//		String[] tuple;
+//		Integer ref;
+//		
+//		PatternStat (String[] tuple, Integer ref) {
+//			this.tuple = tuple;
+//			this.ref = ref;
+//		}
+//	}
+		
 	// store all tuples
 	ArrayList<String[]> space;
 	// store all patterns that are used as synchronized objects
-	ArrayList<String[]> waiting;
+	HashMap<String[], Integer> waiting;
 	
 	public LocalTupleSpace () {
 		space = new ArrayList<String[]>();
-		waiting = new ArrayList<String[]>();
+		waiting = new HashMap<String[], Integer>();
 		
 		space.add(new String[]{"chs", ""});
 	}
 
 	public String[] get(String... pattern) {
-		String[] tp;
-		
 		String[] wp = addWaiting(pattern);
 		synchronized(wp){
-			while ((tp = search(pattern, true)) == null) {
+			String[] tp;
+			while ((tp = searchTuple(pattern, true)) == null) {
 				try {
 					wp.wait();
 				} catch (InterruptedException e) {
 					System.err.println(e.getMessage());
 				}
 			}
+			
+			removeWaiting(wp);
+			
+			return tp;
 		}
-		
-		return tp;
 	}
 
 	public String[] read(String... pattern) {
-		String[] tp;
-		
 		String[] wp = addWaiting(pattern);
 		synchronized(wp){
-			while ((tp = search(pattern, false)) == null) {
+			String[] tp;
+			while ((tp = searchTuple(pattern, false)) == null) {
 				try {
 					wp.wait();
 				} catch (InterruptedException e) {
 					System.err.println(e.getMessage());
 				}
 			}
+			
+			removeWaiting(wp);
+			wp.notify();
+			
+			return tp;
 		}
-		
-		return tp;
 	}
 
 	public void put(String... tuple) {
@@ -65,11 +80,9 @@ public class LocalTupleSpace implements TupleSpace {
 			}
 		}
 		
-		synchronized (space) {
-			space.add(tuple.clone());
-		}
+		String[] tp = addTuple(tuple);
+		String[] wp = searchWaiting(tp);
 		
-		String[] wp = notifyWaiting(tuple);
 		if(wp != null){
 			synchronized(wp){
 				wp.notify();
@@ -77,13 +90,27 @@ public class LocalTupleSpace implements TupleSpace {
 		}
 	}
 	
+	private String[] addTuple(String... tuple) {
+		String[] tp = tuple.clone();
+		synchronized (space) {
+			space.add(tp);
+		}
+		return tp;
+	}
+	
+//	private void removeTuple(String[] tuple) {
+//		synchronized (space) {
+//			space.remove(tuple);
+//		}
+//	}
+	
 	/* 
 	 * search tuple that matches pattern in tuple space and remove the matched 
 	 * tuple if toRemove is true.
 	 * We have to make sure that search and remove operations form an atomic 
 	 * operation. Thus, we put remove here.
 	 */
-	private String[] search(String[] pattern, boolean toRemove) {
+	private String[] searchTuple(String[] pattern, boolean toRemove) {
 		synchronized (space) {
 			for (String[] tp : space) {
 				if (tp.length == pattern.length) {
@@ -112,32 +139,25 @@ public class LocalTupleSpace implements TupleSpace {
 	 * might invoke wait() if necessary.
 	 */
 	private String[] addWaiting(String... pattern) {
-		String[] wp = null;
-		
+		String[] wp = pattern.clone();
 		synchronized (waiting) {
-			for (String[] w : waiting) {
-				if (w.length != pattern.length) continue;
-				boolean found = true;
-				for (int i = 0; i < pattern.length; i++) {
-					if (!((pattern[i] == null && w[i] == null) ||
-							pattern[i] != null && pattern[i].equals(w[i]))) {
-						found = false;
-						break;
-					}
-				}
-				if (found) {
-					wp = w;
-					break;
-				}
-			}
-		
-			if (wp == null) {
-				wp = pattern.clone();
-				waiting.add(wp);
+			if (waiting.containsKey(wp)) {
+				waiting.put(wp, new Integer(waiting.get(wp).intValue() + 1));
+			} else {
+				waiting.put(wp, new Integer(1));
 			}
 		}
-		
 		return wp;
+	}
+	
+	private void removeWaiting(String[] wp) {
+		synchronized (waiting) {
+			if (waiting.containsKey(wp)) {
+				waiting.put(wp, new Integer(waiting.get(wp).intValue() - 1));
+			} else {
+				System.err.println("Oops. Pattern doesn't exits. " + Arrays.toString(wp));
+			}
+		}
 	}
 	
 	/*
@@ -145,31 +165,43 @@ public class LocalTupleSpace implements TupleSpace {
 	 * one exists. Then, The caller of this function should invoke notify()
 	 * if pattern exists. 
 	 */
-	private String[] notifyWaiting(String... tuple) {
+	private String[] searchWaiting(String[] tuple) {
 		synchronized (waiting) {
-			for (String[] w : waiting) {
-				if (w.length != tuple.length) continue;
+			Set<String[]> wpSet = waiting.keySet();
+			for (String[] wp : wpSet) {
+				if (waiting.get(wp).intValue() == 0 || wp.length != tuple.length) continue;
 				boolean found = true;
-				for (int i = 0; i < w.length; i++) {
-					if (w[i] != null && !w[i].equals(tuple[i])) {
+				for (int i = 0; i < wp.length; i++) {
+					if (wp[i] != null && !wp[i].equals(tuple[i])) {
 						found = false;
 						break;
 					}
 				}
-				if (found) return w;
+				if (found) return wp;
 			}
 		}
-		
+			
 		return null;
 	}
 	
-	public void print() {
+	private void printWaiting() {
 		synchronized (waiting) {
-			System.out.println("\nBegin");
-			for (String[] tuple : waiting) {
+			System.out.println("\nPrint Waiting ...");
+			Set<String[]> wpSet = waiting.keySet();
+			for (String[] wp : wpSet) {
+				System.out.println(Arrays.toString(wp) + " => " + waiting.get(wp));
+			}
+			System.out.println("Print Waiting Done.\n");
+		}
+	}
+	
+	private void printSpace() {
+		synchronized (space) {
+			System.out.println("\nPrint Space ...");
+			for (String[] tuple : space) {
 				System.out.println(Arrays.toString(tuple));
 			}
-			System.out.println("End\n");
+			System.out.println("Print Space Done.\n");
 		}
 	}
 }

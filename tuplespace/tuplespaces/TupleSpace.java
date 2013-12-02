@@ -6,6 +6,4 @@ public interface TupleSpace {
 	public String[] get(String... pattern);
 
 	public String[] read(String... pattern);
-	
-	public void print();
 }
