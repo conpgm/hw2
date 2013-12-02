@@ -35,7 +35,7 @@ public class LocalTupleSpace implements TupleSpace {
 				}
 			}
 		}
-
+		
 		return tp;
 	}
 
@@ -161,5 +161,15 @@ public class LocalTupleSpace implements TupleSpace {
 		}
 		
 		return null;
+	}
+	
+	public void print() {
+		synchronized (waiting) {
+			System.out.println("\nBegin");
+			for (String[] tuple : waiting) {
+				System.out.println(Arrays.toString(tuple));
+			}
+			System.out.println("End\n");
+		}
 	}
 }
