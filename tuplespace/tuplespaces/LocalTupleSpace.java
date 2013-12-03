@@ -10,63 +10,101 @@ import java.util.Set;
  * the tuple space, only the thread that waits for that tuple is notified, 
  * thereby improving the performance of concurrency.
  */
+
 public class LocalTupleSpace implements TupleSpace {
 	
-//	class PatternStat {
-//		String[] tuple;
-//		Integer ref;
-//		
-//		PatternStat (String[] tuple, Integer ref) {
-//			this.tuple = tuple;
-//			this.ref = ref;
-//		}
-//	}
+	private class Pattern {
+		String[] ptn;
+		
+		Pattern (String[] ptn) {
+			this.ptn = ptn.clone();
+		}
+		
+		public boolean matches(String[] tuple) {
+			if (ptn.length != tuple.length) return false;
+			for (int i = 0; i < ptn.length; i++) {
+				if (ptn[i] != null && !ptn[i].equals(tuple[i])) return false;
+			}
+			return true;
+		}
+		
+		// new two override functions are used by HashMap class 
+		@Override
+		public int hashCode() {
+			int sum = 0;
+			for (String s : ptn) {
+				if (s != null) sum += s.hashCode();
+			}
+			return sum;
+		}
+		
+		@Override
+		public boolean equals(Object obj) {
+			if (obj == null || !(obj instanceof Pattern)) return false;
+			if (obj == this) return true;
+			
+			Pattern other = (Pattern) obj;
+			if (this.ptn.length != other.ptn.length) return false;
+			for (int i = 0; i < this.ptn.length; i++) {
+				if (!((this.ptn[i] == other.ptn[i]) ||
+					  (this.ptn[i] != null && this.ptn[i].equals(other.ptn[i])))) 
+					  return false;
+			}
+			return true;
+		}
+	}
+	
+	// object for synchronization between threads
+	// if the lock is used, which is ref is greater than 0, there must be
+	// threads that are waiting for the lock 
+	private class Lock {
+		int ref = 0;
+	}
 		
 	// store all tuples
-	ArrayList<String[]> space;
-	// store all patterns that are used as synchronized objects
-	HashMap<String[], Integer> waiting;
+	ArrayList<String[]> space = new ArrayList<String[]>();
+	// A map between waiting pattern and corresponding lock
+	HashMap<Pattern, Lock> waiting = new HashMap<Pattern, Lock>();
 	
 	public LocalTupleSpace () {
-		space = new ArrayList<String[]>();
-		waiting = new HashMap<String[], Integer>();
-		
+		// for channel initialization
 		space.add(new String[]{"chs", ""});
 	}
 
 	public String[] get(String... pattern) {
-		String[] wp = addWaiting(pattern);
-		synchronized(wp){
+		// new a lock for pattern and increase ref if waiting
+		Pattern p = new Pattern(pattern);
+		Lock l = newLock(p);
+		synchronized(l){
 			String[] tp;
-			while ((tp = searchTuple(pattern, true)) == null) {
+			while ((tp = searchTuple(p, true)) == null) {
 				try {
-					wp.wait();
+					l.ref++;
+					l.wait();
 				} catch (InterruptedException e) {
 					System.err.println(e.getMessage());
 				}
 			}
-			
-			removeWaiting(wp);
-			
 			return tp;
 		}
 	}
 
 	public String[] read(String... pattern) {
-		String[] wp = addWaiting(pattern);
-		synchronized(wp){
+		Pattern p = new Pattern(pattern);
+		Lock l = newLock(p);
+		synchronized(l){
 			String[] tp;
-			while ((tp = searchTuple(pattern, false)) == null) {
+			while ((tp = searchTuple(p, false)) == null) {
 				try {
-					wp.wait();
+					l.ref++;
+					l.wait();
 				} catch (InterruptedException e) {
 					System.err.println(e.getMessage());
 				}
 			}
-			
-			removeWaiting(wp);
-			wp.notify();
-			
+			// notify other threads that might be waiting for read if any
+			l.ref--;
+			l.notify();
 			return tp;
 		}
 	}
@@ -81,11 +119,12 @@ public class LocalTupleSpace implements TupleSpace {
 		}
 		
 		String[] tp = addTuple(tuple);
-		String[] wp = searchWaiting(tp);
+		Lock l = getLock(tp);
 		
-		if(wp != null){
-			synchronized(wp){
-				wp.notify();
+		if(l != null){
+			synchronized(l){
+				l.ref--;
+				l.notify();
 			}
 		}
 	}
@@ -98,110 +137,55 @@ public class LocalTupleSpace implements TupleSpace {
 		return tp;
 	}
 	
-//	private void removeTuple(String[] tuple) {
-//		synchronized (space) {
-//			space.remove(tuple);
-//		}
-//	}
-	
 	/* 
 	 * search tuple that matches pattern in tuple space and remove the matched 
 	 * tuple if toRemove is true.
 	 * We have to make sure that search and remove operations form an atomic 
-	 * operation. Thus, we put remove here.
+	 * operation. Thus, we put tuple-removing here.
 	 */
-	private String[] searchTuple(String[] pattern, boolean toRemove) {
+	private String[] searchTuple(Pattern pattern, boolean toRemove) {
 		synchronized (space) {
 			for (String[] tp : space) {
-				if (tp.length == pattern.length) {
-					boolean found = true;
-					for (int i = 0; i < pattern.length; i++) {
-						if (pattern[i] != null && !pattern[i].equals(tp[i])) {
-							found = false;
-							break;
-						}
-					}
-					if (found) {
-						if(toRemove) space.remove(tp);
-						return tp;
-					}
+				if (pattern.matches(tp)) {
+					if (toRemove) space.remove(tp);
+					return tp;
 				}
 			}
-		}
-		
-		return null;
-	}
-	
-	/*
-	 * If there is an existed pattern that is used as a synchronized object
-	 * by some thread, continue using that pattern. If not, then use the new 
-	 * pattern as a synchronized object. Then, the caller of this function 
-	 * might invoke wait() if necessary.
-	 */
-	private String[] addWaiting(String... pattern) {
-		String[] wp = pattern.clone();
-		synchronized (waiting) {
-			if (waiting.containsKey(wp)) {
-				waiting.put(wp, new Integer(waiting.get(wp).intValue() + 1));
-			} else {
-				waiting.put(wp, new Integer(1));
-			}
-		}
-		return wp;
-	}
-	
-	private void removeWaiting(String[] wp) {
-		synchronized (waiting) {
-			if (waiting.containsKey(wp)) {
-				waiting.put(wp, new Integer(waiting.get(wp).intValue() - 1));
-			} else {
-				System.err.println("Oops. Pattern doesn't exits. " + Arrays.toString(wp));
-			}
+			return null;
 		}
 	}
 	
 	/*
-	 * Find the pattern that matches tuple in waiting, return null if no
-	 * one exists. Then, The caller of this function should invoke notify()
-	 * if pattern exists. 
+	 * If there is an existed lock that is used by pattern p, we continue  
+	 * using that lock. If not, then create a new lock for that pattern. 
+	 * The caller of this function will invoke wait() if necessary.
 	 */
-	private String[] searchWaiting(String[] tuple) {
+	private Lock newLock(Pattern p) {
+		Lock l;
 		synchronized (waiting) {
-			Set<String[]> wpSet = waiting.keySet();
-			for (String[] wp : wpSet) {
-				if (waiting.get(wp).intValue() == 0 || wp.length != tuple.length) continue;
-				boolean found = true;
-				for (int i = 0; i < wp.length; i++) {
-					if (wp[i] != null && !wp[i].equals(tuple[i])) {
-						found = false;
-						break;
-					}
-				}
-				if (found) return wp;
+			if (waiting.containsKey(p)) {
+				l = waiting.get(p);	
+			} else {
+				l = new Lock();
+				waiting.put(p, l);
 			}
 		}
-			
+		return l;
+	}
+	
+	/*
+	 * Find the used lock of some pattern that matches the tuple.
+	 * Return null if no lock exists or lock is not used.
+	 * The caller of this function should invoke notify() later.
+	 */
+	private Lock getLock(String[] tuple) {
+		synchronized (waiting) {
+			Set<Pattern> ps = waiting.keySet();
+			for (Pattern p : ps) {
+				Lock l = waiting.get(p);
+				if (l.ref != 0 && p.matches(tuple)) return l;
+			}
+		}
 		return null;
-	}
-	
-	private void printWaiting() {
-		synchronized (waiting) {
-			System.out.println("\nPrint Waiting ...");
-			Set<String[]> wpSet = waiting.keySet();
-			for (String[] wp : wpSet) {
-				System.out.println(Arrays.toString(wp) + " => " + waiting.get(wp));
-			}
-			System.out.println("Print Waiting Done.\n");
-		}
-	}
-	
-	private void printSpace() {
-		synchronized (space) {
-			System.out.println("\nPrint Space ...");
-			for (String[] tuple : space) {
-				System.out.println(Arrays.toString(tuple));
-			}
-			System.out.println("Print Space Done.\n");
-		}
 	}
 }
