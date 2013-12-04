@@ -31,16 +31,13 @@ public class ChatServer {
 				ts.put(ch, CONNECTIONS, "0", "-1");
 			}
 		}
-		ts.put(CHANNELSET, chSet.toString());
 		
-//		System.out.println("[S] chlist " + chSet.toString());
+		ts.put(CHANNELSET, chSet.toString());
 		
 		for (String ch : chSet.getChannels()) {
 			sigwrtMap.put(ch, new IDSet());
 			listenerMap.put(ch, new IDSet());
-		}
-		
-//		System.out.println("[S] a server created.");
+		}		
 	}
 
 	public ChatServer(TupleSpace t) {
@@ -73,16 +70,12 @@ public class ChatServer {
 		String nw = tuple[2];
 		int nwInt = Integer.parseInt(tuple[2]);
 		
-		System.out.println("[S] " + channel + ": writing " + nw);
-		
 		int rows = chSet.getRows(channel);
 		if (nwInt >= rows) {
 			// wait for oldest message
 			String old = Integer.toString(nwInt - rows);
-			System.out.println("[S] " + channel + ": wait for " + old);
 			ts.get(channel, SIGNALS, old, "0");
 			// reclaim oldest message
-			System.out.println("[S] " + channel + ": reclaim ");
 			ts.get(channel, MESSAGE, old, null);
 		}
 		
@@ -99,13 +92,9 @@ public class ChatServer {
 		
 		// enable other chat servers
 		ts.put(channel, NEXTWRITE, Integer.toString(nwInt + 1));
-		System.out.println("[S] " + channel + ": write done. " + nw);
 	}
 
 	public ChatListener openConnection(String channel) {
-		
-		System.out.println("[S] " + channel + ": openning");
-		
 		String[] tuple;
 		// In order to make sure the new listener starts reading from the 
 		// correct position, we have to disable other chat servers
@@ -135,8 +124,6 @@ public class ChatServer {
 		
 		// enable other chat servers
 		ts.put(channel, NEXTWRITE, Integer.toString(nwInt));
-		
-		System.out.println("[S] " + channel + ": open done. " + nrInt);
 		
 		return new ChatListener(ts, channel, rows, nrInt);
 	}

@@ -18,9 +18,7 @@ public class ChatListener {
 	
 	public String getNextMessage() {
 		String nr = Integer.toString(nextRead);
-		
-		System.out.println("[L] " + channel + ": reading " + nr);
-	
+
 		String[] tuple;
 		// get reading signal
 		tuple = ts.get(channel, ChatServer.SIGNALS, nr, null);
@@ -30,18 +28,13 @@ public class ChatListener {
 		tuple = ts.read(channel, ChatServer.MESSAGE, nr, null);
 		
 		// signal chat servers
-		ts.put(channel, ChatServer.SIGNALS, nr, Integer.toString(signals - 1));
-		
-		System.out.println("[L] " + channel +": read done. " + nr + " " + (signals - 1));
+		ts.put(channel, ChatServer.SIGNALS, nr, Integer.toString(signals - 1));		
 		
 		nextRead++;
 		return tuple[3];
 	}
 
 	public void closeConnection() {
-		
-		System.out.println("[L] " + channel + ": closing");
-		
 		String[] tuple;
 		tuple = ts.get(channel, ChatServer.CONNECTIONS, null, null);
 		int lsNum = Integer.parseInt(tuple[2]);
@@ -54,7 +47,5 @@ public class ChatListener {
 		
 		// update listener number
 		ts.put(channel, ChatServer.CONNECTIONS, Integer.toString(lsNum - 1), tuple[3]);
-		
-		System.out.println("[L] " + channel + ": close done.");
 	}
 }

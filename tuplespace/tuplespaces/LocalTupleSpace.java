@@ -5,6 +5,9 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Set;
 
+//import tuplespaces.LocalTupleSpace.Lock;
+//import tuplespaces.LocalTupleSpace.Pattern;
+
 /*
  * Tuple Space implementation. It works this way: when a tuple is put into 
  * the tuple space, only the thread that waits for that tuple is notified, 
@@ -28,7 +31,7 @@ public class LocalTupleSpace implements TupleSpace {
 			return true;
 		}
 		
-		// new two override functions are used by HashMap class 
+		// next two override functions are used by HashMap class 
 		@Override
 		public int hashCode() {
 			int sum = 0;
@@ -55,12 +58,11 @@ public class LocalTupleSpace implements TupleSpace {
 	}
 	
 	// object for synchronization between threads
-	// if the lock is used, which is ref is greater than 0, there must be
-	// threads that are waiting for the lock 
+	// if the lock is used, then ref is greater than 0
 	private class Lock {
 		int ref = 0;
 	}
-		
+	
 	// store all tuples
 	ArrayList<String[]> space = new ArrayList<String[]>();
 	// A map between waiting pattern and corresponding lock
@@ -72,41 +74,50 @@ public class LocalTupleSpace implements TupleSpace {
 	}
 
 	public String[] get(String... pattern) {
-		// new a lock for pattern and increase ref if waiting
 		Pattern p = new Pattern(pattern);
 		Lock l = newLock(p);
+		
+		String[] tp;
 		synchronized(l){
-			String[] tp;
 			while ((tp = searchTuple(p, true)) == null) {
 				try {
-					l.ref++;
 					l.wait();
 				} catch (InterruptedException e) {
 					System.err.println(e.getMessage());
 				}
-			}
-			return tp;
+			}		
 		}
+		
+		delLock(p);
+		return tp;
 	}
 
 	public String[] read(String... pattern) {
 		Pattern p = new Pattern(pattern);
 		Lock l = newLock(p);
+		
+		String[] tp;
 		synchronized(l){
-			String[] tp;
 			while ((tp = searchTuple(p, false)) == null) {
 				try {
-					l.ref++;
 					l.wait();
 				} catch (InterruptedException e) {
 					System.err.println(e.getMessage());
 				}
 			}
-			// notify other threads that might be waiting for read if any
-			l.ref--;
-			l.notify();
-			return tp;
 		}
+		
+		delLock(p);
+		
+		// notify other threads that might be waiting if any
+		l = getLock(tp);
+		if(l != null){
+			synchronized(l){
+				l.notify();
+			}
+		}
+
+		return tp;
 	}
 
 	public void put(String... tuple) {
@@ -119,11 +130,10 @@ public class LocalTupleSpace implements TupleSpace {
 		}
 		
 		String[] tp = addTuple(tuple);
-		Lock l = getLock(tp);
 		
+		Lock l = getLock(tp);
 		if(l != null){
 			synchronized(l){
-				l.ref--;
 				l.notify();
 			}
 		}
@@ -161,16 +171,27 @@ public class LocalTupleSpace implements TupleSpace {
 	 * The caller of this function will invoke wait() if necessary.
 	 */
 	private Lock newLock(Pattern p) {
-		Lock l;
 		synchronized (waiting) {
+			Lock l;
 			if (waiting.containsKey(p)) {
-				l = waiting.get(p);	
+				l = waiting.get(p);
 			} else {
 				l = new Lock();
 				waiting.put(p, l);
 			}
+			l.ref++;
+			return l;
 		}
-		return l;
+	}
+	
+	private void delLock(Pattern p) {
+		synchronized (waiting) {
+			Lock l = waiting.get(p);
+			l.ref--;
+			if (l.ref == 0) {
+				waiting.remove(p);
+			}
+		}
 	}
 	
 	/*
@@ -182,8 +203,7 @@ public class LocalTupleSpace implements TupleSpace {
 		synchronized (waiting) {
 			Set<Pattern> ps = waiting.keySet();
 			for (Pattern p : ps) {
-				Lock l = waiting.get(p);
-				if (l.ref != 0 && p.matches(tuple)) return l;
+				if (p.matches(tuple)) return waiting.get(p);
 			}
 		}
 		return null;
