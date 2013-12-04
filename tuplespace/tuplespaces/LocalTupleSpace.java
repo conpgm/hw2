@@ -89,6 +89,15 @@ public class LocalTupleSpace implements TupleSpace {
 		}
 		
 		delLock(p);
+		
+		// notify other threads that might be waiting if any
+		l = getLock(tp);
+		if(l != null){
+			synchronized(l){
+				l.notify();
+			}
+		}
+		
 		return tp;
 	}
 
