@@ -36,8 +36,10 @@ public class ChatListener {
 
 	public void closeConnection() {
 		String[] tuple;
+		
+		// get latest readable position
 		tuple = ts.get(channel, ChatServer.CONNECTIONS, null, null);
-		int lsNum = Integer.parseInt(tuple[2]);
+		int ccNum = Integer.parseInt(tuple[2]);
 		int lrInt = Integer.parseInt(tuple[3]);
 		
 		// consume the not-yet-reading signals for this client
@@ -45,7 +47,7 @@ public class ChatListener {
 			getNextMessage();
 		}
 		
-		// update listener number
-		ts.put(channel, ChatServer.CONNECTIONS, Integer.toString(lsNum - 1), tuple[3]);
+		// update number of client connections
+		ts.put(channel, ChatServer.CONNECTIONS, Integer.toString(ccNum - 1), tuple[3]);
 	}
 }
