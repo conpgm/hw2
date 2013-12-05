@@ -1,54 +1,136 @@
 package tuplespaces;
 
 import java.util.ArrayList;
+import java.util.Arrays;
+
+/*
+ * Tuple Space implementation. It works this way: when a tuple is put into 
+ * the tuple space, only the thread that waits for that tuple is notified, 
+ * thereby improving the performance of concurrency.
+ * 
+ * Every get/read generates a distinguished Pattern object even if the pattern
+ * itself is equal. put will notify all the Pattern objects that match the 
+ * specific tuple in waiting list.
+ */
 
 public class LocalTupleSpace implements TupleSpace {
 	
+	private class Pattern {
+		String[] ptn;
+		
+		Pattern (String[] ptn) {
+			this.ptn = ptn.clone();
+		}
+		
+		public boolean matches(String[] tuple) {
+			if (ptn.length != tuple.length) return false;
+			for (int i = 0; i < ptn.length; i++) {
+				if (ptn[i] != null && !ptn[i].equals(tuple[i])) return false;
+			}
+			return true;
+		}
+	}
+	
+	// store all tuples
 	ArrayList<String[]> space = new ArrayList<String[]>();
+	// A map between waiting pattern and corresponding lock
+	ArrayList<Pattern> waiting = new ArrayList<Pattern>();
 	
-	public synchronized String[] get(String... pattern) {
-		String[] tp;
-		while ((tp = search(pattern)) == null) {
-			try {
-				wait();
-			} catch (InterruptedException e) {
-				throw new RuntimeException();
-			}
+	public LocalTupleSpace () {
+		
+	}
+
+	public String[] get(String... pattern) {
+		Pattern p = new Pattern(pattern);
+		synchronized (waiting) {
+			waiting.add(p);
 		}
-		space.remove(tp);
+		
+		String[] tp;
+		synchronized(p){
+			while ((tp = searchTuple(p, true)) == null) {
+				try {
+					p.wait();
+				} catch (InterruptedException e) {
+					System.err.println(e.getMessage());
+				}
+			}		
+		}
+		
+		synchronized (waiting) {
+			waiting.remove(p);
+		}
 		return tp;
 	}
 
-	public synchronized String[] read(String... pattern) {
+	public String[] read(String... pattern) {
+		Pattern p = new Pattern(pattern);
+		synchronized (waiting) {
+			waiting.add(p);
+		}
+		
 		String[] tp;
-		while ((tp = search(pattern)) == null) {
-			try {
-				wait();
-			} catch (InterruptedException e) {
-				throw new RuntimeException();
-			}
+		synchronized(p){
+			while ((tp = searchTuple(p, false)) == null) {
+				try {
+					p.wait();
+				} catch (InterruptedException e) {
+					System.err.println(e.getMessage());
+				}
+			}		
+		}
+		
+		synchronized (waiting) {
+			waiting.remove(p);
 		}
 		return tp;
 	}
 
-	public synchronized void put(String... tuple) {	
-		space.add(tuple.clone());
-		notifyAll();
-	}
-	
-	private String[] search(String... pattern) {
-		for (String[] tp : space) {
-			if (tp.length == pattern.length) {
-				boolean found = true;
-				for (int i = 0; i < pattern.length; i++) {
-					if (pattern[i] != null && !pattern[i].equals(tp[i])) {
-						found = false;
-						break;
+	public void put(String... tuple) {
+		for (String s : tuple) {
+			if (s == null) {
+				System.err.println("OOps. Tuple " + 
+						Arrays.toString(tuple) + " contains null.");
+				return ;
+			}
+		}
+		
+		// notify all Pattern objects that match the tuple
+		String[] tp = addTuple(tuple);
+		synchronized (waiting) {
+			for (Pattern p : waiting) {
+				if (p.matches(tp)) {
+					synchronized (p) {
+						p.notify();
 					}
 				}
-				if (found) return tp;
 			}
 		}
-		return null;
+	}
+	
+	private String[] addTuple(String... tuple) {
+		String[] tp = tuple.clone();
+		synchronized (space) {
+			space.add(tp);
+		}
+		return tp;
+	}
+	
+	/* 
+	 * search tuple that matches pattern in tuple space and remove the matched 
+	 * tuple if toRemove is true.
+	 * We have to make sure that search and remove operations form an atomic 
+	 * operation. Thus, we put tuple-removing here.
+	 */
+	private String[] searchTuple(Pattern pattern, boolean toRemove) {
+		synchronized (space) {
+			for (String[] tp : space) {
+				if (pattern.matches(tp)) {
+					if (toRemove) space.remove(tp);
+					return tp;
+				}
+			}
+			return null;
+		}
 	}
 }
