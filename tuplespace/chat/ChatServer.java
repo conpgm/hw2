@@ -144,9 +144,9 @@ public class ChatServer {
 	
 	
 	/*
-	 * Inner class ChannelSet for channel management
+	 * static nested class ChannelSet for channel management
 	 */
-	private final class ChannelSet {
+	private final static class ChannelSet {
 		
 		HashMap<String, String> channels = new HashMap<String, String>();
 		
